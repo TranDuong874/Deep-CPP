@@ -410,12 +410,131 @@ namespace deepc {
                 return child;
             }
             
+            Tensor<datatype> exp() {
+                Tensor<datatype> child(shape_vector, requires_grad);
+
+                for (size_t i = 0; i < value_vector.size(); i++) {
+                    child.value_vector[i] = std::exp(value_vector[i]);
+                }
+
+                if (requires_grad) {
+                    child.parent1 = this;
+
+                    child.grad_fn = [this, &child] {
+                        for (size_t i = 0; i < child.grad.size(); i++) {
+                            this->grad[i] += child.grad[i] * std::exp(this->value_vector[i]);
+                        }
+                    };
+                }
+
+                return child;
+            }
+
+            Tensor<datatype> sin() {
+                Tensor<datatype> child(shape_vector, requires_grad);
+
+                for (size_t i = 0; i < value_vector.size(); i++) {
+                    child.value_vector[i] = std::sin(value_vector[i]);
+                }
+
+                if (requires_grad) {
+                    child.parent1 = this;
+
+                    child.grad_fn = [this, &child] {
+                        for (size_t i = 0; i < child.grad.size(); i++) {
+                            this->grad[i] += child.grad[i] * std::cos(this->value_vector[i]);
+                        }
+                    };
+                }
+
+                return child;
+            }
+
+            Tensor<datatype> cos() {
+                
+            }
 
             std::vector<datatype> getFlattenedVector() {
                 return value_vector;
             }
-    };
-}
+
+            std::pair<Tensor<datatype>, Tensor<datatype>> broadcast(Tensor<datatype> &other) {
+                std::vector<int> result_shape;
+                std::vector<int> this_shape = this->shape_vector;
+                std::vector<int> other_shape = other.shape_vector;
+
+                // Pad 1 to the left of tensors with smaller size
+                while (this_shape.size() < other_shape.size()) {
+                    this_shape.insert(this_shape.begin(), 1);
+                }
+                while (other_shape.size() < this_shape.size()) {
+                    other_shape.insert(other_shape.begin(), 1);
+                }
+
+                
+                for (int i = 0; i < this_shape.size(); i++) {
+                    if (this_shape[i] == other_shape[i]) {
+                        result_shape.push_back(this_shape[i]);
+                    } else if (this_shape[i] == 1) {
+                        result_shape.push_back(other_shape[i]);
+                    } else if (other_shape[i] == 1) {
+                        result_shape.push_back(this_shape[i]);
+                    } else {
+                        throw std::runtime_error("Cannot broadcast tensors");
+                    }
+                }
+
+
+
+                Tensor<datatype> this_broadcasted(result_shape, this->requires_grad);
+                Tensor<datatype> other_broadcasted(result_shape, other.requires_grad);
+
+                fillBroadcast(this_broadcasted, *this, this_shape);
+                fillBroadcast(other_broadcasted, other, other_shape);
+
+                this_broadcasted.view();
+                
+                std::pair<Tensor<datatype>, Tensor<datatype>> broadcastedPair(this_broadcasted, result_shape);
+                return broadcastedPair;
+            }           
+
+            void fillBroadcast(Tensor<datatype> &result_tensor, Tensor<datatype> &original_tensor, std::vector<int> padded_original_shape) {
+                int rank = result_tensor.shape_vector.size();
+            
+                for (int i = 0; i < result_tensor.value_vector.size(); i++) {  
+                    int temp_flat = i;
+                    std::vector<int> tensor_index(rank, 0);
+            
+                    // result flat -> result multi index
+                    for (int j = rank - 1; j >= 0; j--) {
+                        tensor_index[j] = temp_flat % result_tensor.shape_vector[j]; 
+                        temp_flat /= result_tensor.shape_vector[j];                 
+                    }
+            
+                    // Result tensor index -> original tensor index
+                    std::vector<int> original_index(rank, 0);
+                    for (int j = 0; j < rank; j++) {
+                        if (padded_original_shape[j] == 1) {
+                            original_index[j] = 0;
+                        } else {
+                            original_index[j] = tensor_index[j];
+                        }  
+                    }
+            
+                    // original multi -> original flat index
+                    int original_flat_index = 0;
+                    int stride = 1;
+                    for (int j = rank - 1; j >= 0; j--) {
+                        original_flat_index += original_index[j] * stride;
+                        stride *= padded_original_shape[j];  
+                    }
+            
+                    result_tensor.value_vector[i] = original_tensor.value_vector[original_flat_index];
+                }
+            }
+            
+    };                  
+}                
 
 
 
@@ -426,16 +545,42 @@ namespace deepc {
 // 4. Refactor code
 // 5. Check memory management
 // 6. Add better error handling
+// 7. Add broadcast for scalar * tensor operation
+// 8. Matrix multiplication for 2D tensors
+// 9. Rewrite reshape function, if new shape smaller than original, just trim, if new shape is greater, add zeros
+// 10. Convolve function
 
 int main() {
-    deepc::Tensor<float> x({2,2}, {1,1,1,1}, true);
+    // Init test
+    deepc::Tensor<float> x({2,2}, {1.5,3.2,5.3,6.3}, true);
     x.view();
-    std::cout << sizeof(x);
 
-    deepc::Tensor<float> y({2,2}, {2,2,2,2}, true);
+        // Init test
+    deepc::Tensor<float> y({2,2}, {2.1,4.2,6.3,8.1}, true);
     y.view();
-    deepc::Tensor<float> z = y.pow(2);
-    z.backward();
+
+    // Operator test
+    //f = x**2 + y**2 + x + y
+    //df/dfx = 2x + 1
+    deepc::Tensor<float> a = x.pow(2);
+    deepc::Tensor<float> b = y.pow(2);
+    deepc::Tensor<float> c = x + y;
+    deepc::Tensor<float> d = a + b;
+    deepc::Tensor<float> f = c + d;
+
+    // Grad test
+    f.backward();
+
+    std::cout << "Gradient at x:\n";
+    x.getGrad().view();
+
+    std::cout << "Gradient at y:\n";
     y.getGrad().view();
-    z.getGrad().view();
+
+    // Broadcasting test
+    deepc::Tensor<float> z({3,2,1}, {3, 3, 3, 3, 3, 3}, false);
+
+    x.broadcast(z);
+
+    deepc::Tensor<float> h({1}, {3}, false);
 }
