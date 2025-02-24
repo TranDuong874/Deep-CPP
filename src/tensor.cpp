@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <cmath>
 #include <functional>
+#include <algorithm>
 
 namespace deepc {
     template <class datatype>
@@ -109,7 +110,7 @@ namespace deepc {
             Tensor<datatype> getTensor(std::vector<int> index) {
                 if (index.size() > this->shape_vector.size()) {
                     throw std::runtime_error("Too many indicies for tensor dimensions!");
-                }
+                }   
 
                 std::pair<int,int> index_stride = getFlatIndexAndStride(index);
                 int flat_index = index_stride.first;
@@ -151,7 +152,6 @@ namespace deepc {
                 }
             }
 
-            // ChatGPT
             void view(int index = 0, int dim = 0, int indent = 0) {
                 if (dim == shape_vector.size() - 1) {  // Last dimension: Print values on the same line
                     std::cout << std::string(indent, ' ') << "[";
@@ -220,107 +220,256 @@ namespace deepc {
             }
 
             Tensor<datatype> operator+(Tensor<datatype>& other) {
-                if (!dimMatch(other)) {
-                    throw std::runtime_error("Shape mismatch in addition.");
-                }
-
-                Tensor<datatype> child(shape_vector, requires_grad || other.requires_grad);
-
-                for (size_t i = 0; i < value_vector.size(); i++) {
-                    child.value_vector[i] = value_vector[i] + other.value_vector[i];
-                }
-
-                if (child.requires_grad) {
-                    child.parent1 = this;
-                    child.parent2 = &other;
-
-                    child.grad_fn = [this, &other, &child]() {
-                        for (size_t i = 0; i < this->grad.size(); i++) {
-                            if (this->requires_grad) this->grad[i] += 1.0f * child.grad[i];
-                            if (other.requires_grad) other.grad[i] += 1.0f * child.grad[i];
-                        }
-                    };
-                }
-
-                return child;
-            }
+                std::pair<Tensor<datatype>, Tensor<datatype>> broadcastedPair = this->broadcast(other);
+                Tensor<datatype> broadcasted_this = broadcastedPair.first;
+                Tensor<datatype> broadcasted_other = broadcastedPair.second;
+                
+                Tensor<datatype> child(broadcasted_this.shape_vector, requires_grad || other.requires_grad);
             
-            Tensor<datatype> operator-(Tensor<datatype>& other) {
-                if (!dimMatch(other)) {
-                    throw std::runtime_error("Shape mismatch in subtraction.");
-                }
-            
-                Tensor<datatype> child(shape_vector, requires_grad || other.requires_grad);
-            
-                for (size_t i = 0; i < value_vector.size(); i++) {
-                    child.value_vector[i] = value_vector[i] - other.value_vector[i];
+                for (size_t i = 0; i < broadcasted_this.value_vector.size(); i++) {
+                    child.value_vector[i] = broadcasted_this.value_vector[i] + broadcasted_other.value_vector[i];
                 }
             
                 if (requires_grad || other.requires_grad) {
                     child.parent1 = this;
                     child.parent2 = &other;
-                    child.grad_fn = [this, &other, &child]() {
-                        for (size_t i = 0; i < child.grad.size(); i++) {
-                            this->grad[i] += child.grad[i];  
-                            other.grad[i] -= child.grad[i]; 
+                    
+                    child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
+                        std::vector<int> broadcast_dims;
+                        
+                        for (size_t i = 0; i < child.shape_vector.size(); i++) {
+                            if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
+                                broadcast_dims.push_back(i);
+                            }
+                        }
+ 
+                        if (this->requires_grad) {
+                            Tensor<datatype> this_grad(child.shape_vector, false);
+                            this_grad.value_vector = child.grad;
+                        
+                            if (!broadcast_dims.empty()) {
+                                this_grad = this_grad.dimsum(broadcast_dims);
+                            }
+                            
+                            for (size_t i = 0; i < this->grad.size(); i++) {
+                                this->grad[i] += this_grad.value_vector[i];
+                            }
+                        }
+                        
+                        broadcast_dims.clear();
+                        for (size_t i = 0; i < child.shape_vector.size(); i++) {
+                            if (i >= other.shape_vector.size() || other.shape_vector[i] == 1) {
+                                broadcast_dims.push_back(i);
+                            }
+                        }
+                        
+                        if (other.requires_grad) {
+                            Tensor<datatype> other_grad(child.shape_vector, false);
+                            other_grad.value_vector = child.grad;
+                            
+                            if (!broadcast_dims.empty()) {
+                                other_grad = other_grad.dimsum(broadcast_dims);
+                            }
+                            
+                            // Add to gradient
+                            for (size_t i = 0; i < other.grad.size(); i++) {
+                                other.grad[i] += other_grad.value_vector[i];
+                            }
                         }
                     };
                 }
+                
+                return child;
+            }
+
             
+            Tensor<datatype> operator-(Tensor<datatype>& other) {
+                std::pair<Tensor<datatype>, Tensor<datatype>> broadcastedPair = this->broadcast(other);
+                Tensor<datatype> broadcasted_this = broadcastedPair.first;
+                Tensor<datatype> broadcasted_other = broadcastedPair.second;
+                
+                Tensor<datatype> child(broadcasted_this.shape_vector, requires_grad || other.requires_grad);
+            
+                for (size_t i = 0; i < broadcasted_this.value_vector.size(); i++) {
+                    child.value_vector[i] = broadcasted_this.value_vector[i] - broadcasted_other.value_vector[i];
+                }
+            
+                if (requires_grad || other.requires_grad) {
+                    child.parent1 = this;
+                    child.parent2 = &other;
+                    
+                    child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
+                        std::vector<int> broadcast_dims;
+                        
+                        for (size_t i = 0; i < child.shape_vector.size(); i++) {
+                            if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
+                                broadcast_dims.push_back(i);
+                            }
+                        }
+ 
+                        if (this->requires_grad) {
+                            Tensor<datatype> this_grad(child.shape_vector, false);
+                            this_grad.value_vector = child.grad;
+                        
+                            if (!broadcast_dims.empty()) {
+                                this_grad = this_grad.dimsum(broadcast_dims);
+                            }
+                            
+                            for (size_t i = 0; i < this->grad.size(); i++) {
+                                this->grad[i] += this_grad.value_vector[i];
+                            }
+                        }
+                        
+                        broadcast_dims.clear();
+                        for (size_t i = 0; i < child.shape_vector.size(); i++) {
+                            if (i >= other.shape_vector.size() || other.shape_vector[i] == 1) {
+                                broadcast_dims.push_back(i);
+                            }
+                        }
+                        
+                        if (other.requires_grad) {
+                            Tensor<datatype> other_grad(child.shape_vector, false);
+                            other_grad.value_vector = child.grad;
+                            
+                            if (!broadcast_dims.empty()) {
+                                other_grad = other_grad.dimsum(broadcast_dims);
+                            }
+                            
+                            // Add to gradient
+                            for (size_t i = 0; i < other.grad.size(); i++) {
+                                other.grad[i] -= other_grad.value_vector[i];
+                            }
+                        }
+                    };
+                }
+                
                 return child;
             }
             
             Tensor<datatype> operator*(Tensor<datatype>& other) {
-                if (!dimMatch(other)) {
-                    throw std::runtime_error("Shape mismatch in multiplication.");
-                }
+                std::pair<Tensor<datatype>, Tensor<datatype>> broadcastedPair = this->broadcast(other);
+                Tensor<datatype> broadcasted_this = broadcastedPair.first;
+                Tensor<datatype> broadcasted_other = broadcastedPair.second;
+                
+                Tensor<datatype> child(broadcasted_this.shape_vector, requires_grad || other.requires_grad);
             
-                Tensor<datatype> child(shape_vector, requires_grad || other.requires_grad);
-            
-                for (size_t i = 0; i < value_vector.size(); i++) {
-                    child.value_vector[i] = value_vector[i] * other.value_vector[i];
+                for (size_t i = 0; i < broadcasted_this.value_vector.size(); i++) {
+                    child.value_vector[i] = broadcasted_this.value_vector[i] * broadcasted_other.value_vector[i];
                 }
             
                 if (requires_grad || other.requires_grad) {
                     child.parent1 = this;
                     child.parent2 = &other;
-                    child.grad_fn = [this, &other, &child]() {
-                        for (size_t i = 0; i < child.grad.size(); i++) {
-                            this->grad[i] += child.grad[i] * other.value_vector[i];
-                            other.grad[i] += child.grad[i] * this->value_vector[i];  
+                    
+                    child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
+                        std::vector<int> broadcast_dims;
+                        
+                        for (size_t i = 0; i < child.shape_vector.size(); i++) {
+                            if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
+                                broadcast_dims.push_back(i);
+                            }
+                        }
+ 
+                        if (this->requires_grad) {
+                            Tensor<datatype> this_grad(child.shape_vector, false);
+                            this_grad.value_vector = child.grad;
+                        
+                            if (!broadcast_dims.empty()) {
+                                this_grad = this_grad.dimsum(broadcast_dims);
+                            }
+                            
+                            for (size_t i = 0; i < this->grad.size(); i++) {
+                                this->grad[i] += this_grad.value_vector[i] * other.value_vector[i];
+                            }
+                        }
+                        
+                        broadcast_dims.clear();
+                        for (size_t i = 0; i < child.shape_vector.size(); i++) {
+                            if (i >= other.shape_vector.size() || other.shape_vector[i] == 1) {
+                                broadcast_dims.push_back(i);
+                            }
+                        }
+                        
+                        if (other.requires_grad) {
+                            Tensor<datatype> other_grad(child.shape_vector, false);
+                            other_grad.value_vector = child.grad;
+                            
+                            if (!broadcast_dims.empty()) {
+                                other_grad = other_grad.dimsum(broadcast_dims);
+                            }
+                            
+                            // Add to gradient
+                            for (size_t i = 0; i < other.grad.size(); i++) {
+                                other.grad[i] += other_grad.value_vector[i] * this->value_vector[i];
+                            }
                         }
                     };
                 }
-            
+                
                 return child;
             }
 
-            
-
             Tensor<datatype> operator/(Tensor<datatype>& other) {
-                if (!dimMatch(other)) {
-                    throw std::runtime_error("Shape mismatch in multiplication");
+                std::pair<Tensor<datatype>, Tensor<datatype>> broadcastedPair = this->broadcast(other);
+                Tensor<datatype> broadcasted_this = broadcastedPair.first;
+                Tensor<datatype> broadcasted_other = broadcastedPair.second;
+                
+                Tensor<datatype> child(broadcasted_this.shape_vector, requires_grad || other.requires_grad);
+            
+                for (size_t i = 0; i < broadcasted_this.value_vector.size(); i++) {
+                    child.value_vector[i] = broadcasted_this.value_vector[i] - broadcasted_other.value_vector[i];
                 }
-
-                Tensor<datatype> child(shape_vector, requires_grad || other.requires_grad);
-
-                for (size_t i = 0; i < value_vector.size(); i++) {
-                    child.value_vector[i] = value_vector[i] / other.value_vector[i];
-                }
-
+            
                 if (requires_grad || other.requires_grad) {
                     child.parent1 = this;
                     child.parent2 = &other;
-                    child.grad_fn = [this, &other, child]() {
-                        for (size_t i = 0; i < child.grad.size(); i++) {
-                            this->grad[i] += child.grad[i] * 1/other.value_vector[i];
-                            other.grad[i] += child.grad[i] * (-this->value_vector[i] / (other.value_vector[i] * other.value_vector[i]));
+                    
+                    child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
+                        std::vector<int> broadcast_dims;
+                        
+                        for (size_t i = 0; i < child.shape_vector.size(); i++) {
+                            if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
+                                broadcast_dims.push_back(i);
+                            }
+                        }
+ 
+                        if (this->requires_grad) {
+                            Tensor<datatype> this_grad(child.shape_vector, false);
+                            this_grad.value_vector = child.grad;
+                        
+                            if (!broadcast_dims.empty()) {
+                                this_grad = this_grad.dimsum(broadcast_dims);
+                            }
+                            
+                            for (size_t i = 0; i < this->grad.size(); i++) {
+                                this->grad[i] += this_grad.value_vector[i] * 1/other.value_vector[i];;
+                            }
+                        }
+                        
+                        broadcast_dims.clear();
+                        for (size_t i = 0; i < child.shape_vector.size(); i++) {
+                            if (i >= other.shape_vector.size() || other.shape_vector[i] == 1) {
+                                broadcast_dims.push_back(i);
+                            }
+                        }
+                        
+                        if (other.requires_grad) {
+                            Tensor<datatype> other_grad(child.shape_vector, false);
+                            other_grad.value_vector = child.grad;
+                            
+                            if (!broadcast_dims.empty()) {
+                                other_grad = other_grad.dimsum(broadcast_dims);
+                            }
+                            
+                            for (size_t i = 0; i < other.grad.size(); i++) {
+                                other.grad[i] += other_grad.value_vector[i]  * (-this->value_vector[i] / (other.value_vector[i] * other.value_vector[i]));;
+                            }
                         }
                     };
                 }
-
+                
                 return child;
-            }    
+            }
              
             Tensor<datatype> matmul(Tensor<datatype> x, Tensor<datatype> y) {
                 
@@ -484,53 +633,142 @@ namespace deepc {
                     }
                 }
 
-
-
                 Tensor<datatype> this_broadcasted(result_shape, this->requires_grad);
                 Tensor<datatype> other_broadcasted(result_shape, other.requires_grad);
 
                 fillBroadcast(this_broadcasted, *this, this_shape);
                 fillBroadcast(other_broadcasted, other, other_shape);
 
-                this_broadcasted.view();
+                // this_broadcasted.view();
                 
-                std::pair<Tensor<datatype>, Tensor<datatype>> broadcastedPair(this_broadcasted, result_shape);
+                std::pair<Tensor<datatype>, Tensor<datatype>> broadcastedPair(this_broadcasted, other_broadcasted);
                 return broadcastedPair;
-            }           
+            }      
+            
+            std::vector<int> flat_to_multi(size_t flat_index, const std::vector<int>& shape) const {
+                int rank = shape.size();
+                std::vector<int> multi_index(rank, 0);
+                int temp_flat = flat_index;
 
-            void fillBroadcast(Tensor<datatype> &result_tensor, Tensor<datatype> &original_tensor, std::vector<int> padded_original_shape) {
-                int rank = result_tensor.shape_vector.size();
+                for (int j = rank - 1; j >= 0; j--) {
+                    multi_index[j] = temp_flat % shape[j]; 
+                    temp_flat /= shape[j];                 
+                }
+                return multi_index;
+            }
+
+            size_t multi_to_flat(const std::vector<int>& multi_index, const std::vector<int>& shape) const {
+                int rank = shape.size();
+                size_t flat_index = 0;
+                size_t stride = 1;
+
+                for (int j = rank - 1; j >= 0; j--) {
+                    flat_index += multi_index[j] * stride;
+                    stride *= shape[j];  
+                }
+                return flat_index;
+            }
+
+            Tensor<datatype> dimsum(const std::vector<int>& dims) {
+                // Validate dimensions
+                for (int dim : dims) {
+                    if (dim < 0 || dim >= shape_vector.size()) {
+                        throw std::runtime_error("Invalid dimension for summation");
+                    }
+                }
             
-                for (int i = 0; i < result_tensor.value_vector.size(); i++) {  
-                    int temp_flat = i;
-                    std::vector<int> tensor_index(rank, 0);
+                // Sort dimensions in descending order to handle reduction properly
+                std::vector<int> sorted_dims = dims;
+                std::sort(sorted_dims.begin(), sorted_dims.end(), std::greater<int>());
             
-                    // result flat -> result multi index
-                    for (int j = rank - 1; j >= 0; j--) {
-                        tensor_index[j] = temp_flat % result_tensor.shape_vector[j]; 
-                        temp_flat /= result_tensor.shape_vector[j];                 
+                // Create new shape by removing dimensions we're summing over
+                std::vector<int> new_shape;
+                for (int i = 0; i < shape_vector.size(); i++) {
+                    if (std::find(sorted_dims.begin(), sorted_dims.end(), i) == sorted_dims.end()) {
+                        new_shape.push_back(shape_vector[i]);
+                    }
+                }
+                
+                // If summing over all dimensions or resulting in a scalar
+                bool is_scalar = new_shape.empty() || (new_shape.size() == 1 && new_shape[0] == 1);
+                if (is_scalar) {
+                    // Create a scalar tensor
+                    Tensor<datatype> result({1}, requires_grad);
+                    datatype sum = 0;
+                    
+                    // Sum all elements
+                    for (const auto& val : value_vector) {
+                        sum += val;
+                    }
+                    
+                    result.value_vector[0] = sum;
+                    
+                    return result;
+                }
+            
+                // Non-scalar case (same as before)
+                Tensor<datatype> result(new_shape, requires_grad);
+                std::fill(result.value_vector.begin(), result.value_vector.end(), 0);
+            
+                auto get_indices = [](int flat_idx, const std::vector<int>& shape) -> std::vector<int> {
+                    std::vector<int> indices(shape.size());
+                    for (int i = shape.size() - 1; i >= 0; i--) {
+                        indices[i] = flat_idx % shape[i];
+                        flat_idx /= shape[i];
+                    }
+                    return indices;
+                };
+            
+                auto get_flat_index = [](const std::vector<int>& indices, const std::vector<int>& shape) -> int {
+                    int flat_idx = 0;
+                    int multiplier = 1;
+                    for (int i = shape.size() - 1; i >= 0; i--) {
+                        flat_idx += indices[i] * multiplier;
+                        multiplier *= shape[i];
+                    }
+                    return flat_idx;
+                };
+            
+                // Perform the summation
+                for (size_t i = 0; i < value_vector.size(); i++) {
+                    std::vector<int> src_indices = get_indices(i, shape_vector);
+                    std::vector<int> dst_indices;
+            
+                    for (int j = 0; j < shape_vector.size(); j++) {
+                        if (std::find(sorted_dims.begin(), sorted_dims.end(), j) == sorted_dims.end()) {
+                            dst_indices.push_back(src_indices[j]);
+                        }
                     }
             
-                    // Result tensor index -> original tensor index
+                    int dst_idx = get_flat_index(dst_indices, new_shape);
+                    result.value_vector[dst_idx] += value_vector[i];
+                }
+
+                return result;
+            }
+
+            void fillBroadcast(Tensor<datatype> &result_tensor, Tensor<datatype> &original_tensor, const std::vector<int>& padded_original_shape) {
+                int rank = result_tensor.shape_vector.size();
+                
+                for (int i = 0; i < result_tensor.value_vector.size(); i++) {  
+                    std::vector<int> tensor_index = result_tensor.flat_to_multi(i, result_tensor.shape_vector);
+            
                     std::vector<int> original_index(rank, 0);
                     for (int j = 0; j < rank; j++) {
-                        if (padded_original_shape[j] == 1) {
-                            original_index[j] = 0;
-                        } else {
-                            original_index[j] = tensor_index[j];
-                        }  
+                        original_index[j] = (padded_original_shape[j] == 1) ? 0 : tensor_index[j];
                     }
             
-                    // original multi -> original flat index
-                    int original_flat_index = 0;
-                    int stride = 1;
-                    for (int j = rank - 1; j >= 0; j--) {
-                        original_flat_index += original_index[j] * stride;
-                        stride *= padded_original_shape[j];  
-                    }
+                    int original_flat_index = original_tensor.multi_to_flat(original_index, padded_original_shape);
             
                     result_tensor.value_vector[i] = original_tensor.value_vector[original_flat_index];
                 }
+            }
+            
+            Tensor<datatype> matmul(Tensor<datatype> &other) {
+                Tensor<datatype> broadcasted_pair = this->broadcast(other);
+                Tensor<datatype> broadcasted_this = broadcasted_pair.first;
+                Tensor<datatype> broadcasted_other = broadcasted_pair.second;
+                
             }
             
     };                  
@@ -551,36 +789,5 @@ namespace deepc {
 // 10. Convolve function
 
 int main() {
-    // Init test
-    deepc::Tensor<float> x({2,2}, {1.5,3.2,5.3,6.3}, true);
-    x.view();
 
-        // Init test
-    deepc::Tensor<float> y({2,2}, {2.1,4.2,6.3,8.1}, true);
-    y.view();
-
-    // Operator test
-    //f = x**2 + y**2 + x + y
-    //df/dfx = 2x + 1
-    deepc::Tensor<float> a = x.pow(2);
-    deepc::Tensor<float> b = y.pow(2);
-    deepc::Tensor<float> c = x + y;
-    deepc::Tensor<float> d = a + b;
-    deepc::Tensor<float> f = c + d;
-
-    // Grad test
-    f.backward();
-
-    std::cout << "Gradient at x:\n";
-    x.getGrad().view();
-
-    std::cout << "Gradient at y:\n";
-    y.getGrad().view();
-
-    // Broadcasting test
-    deepc::Tensor<float> z({3,2,1}, {3, 3, 3, 3, 3, 3}, false);
-
-    x.broadcast(z);
-
-    deepc::Tensor<float> h({1}, {3}, false);
 }
