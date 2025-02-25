@@ -27,6 +27,7 @@ namespace deepc {
             void initGrad(int data_length);
 
         public:
+            Tensor();
             Tensor(const Tensor<datatype>& other, bool requires_grad = false);
             Tensor(std::vector<int> shape_vector, bool requires_grad = false);
             Tensor(std::vector<int> shape_vector, std::vector<datatype> value_vector, bool requires_grad = false);

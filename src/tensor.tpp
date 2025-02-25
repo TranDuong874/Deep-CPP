@@ -1,6 +1,11 @@
 #include "../include/tensor.h"
 
 namespace deepc {
+    template <class datatype>
+    Tensor<datatype>::Tensor() {
+
+    }
+    
     // From tensor index find the index in value_vector and the range of the data
     // e.g: tensor 2x2x3 if tensor[0] is chosen then get the values in value_vector that belongs the first 2x3 vector 
     template <class datatype>
@@ -232,7 +237,7 @@ namespace deepc {
             std::fill(this->grad.begin(), grad.end(), 1);
         }            
 
-
+        
 
         backward_recursion();
     }
@@ -242,13 +247,17 @@ namespace deepc {
         if (grad_fn) {
             grad_fn();
 
+            std::cout << "Current node: " << this << std::endl;
+            
             if (parent1) {
+                std::cout << "Parent1: " << parent1 << std::endl;
                 if (parent1->grad.empty()) {
                     parent1->grad.resize(parent1->value_vector.size(), 0);
                 }
                 parent1->backward_recursion();
             }
             if (parent2) {
+                std::cout << "Parent2: " << parent2 << std::endl;
                 if (parent2->grad.empty()) {
                     parent2->grad.resize(parent2->value_vector.size(), 0);
                 }
