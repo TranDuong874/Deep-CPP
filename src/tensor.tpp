@@ -257,6 +257,7 @@ namespace deepc {
         if (grad_fn) {
             grad_fn();
             
+            std::cerr << "GRad FN ran";
             if (parent1) {
                 std::cout << "Hello 1";
                 if (parent1->grad.empty()) {
@@ -289,9 +290,9 @@ namespace deepc {
             child.parent1 = this;
             child.parent2 = &other;
             
-            child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
+            child.grad_fn = [this, &other, child, broadcasted_this, broadcasted_other]() {
                 std::vector<int> broadcast_dims;
-                
+                std::cout << "+ GRAD FN\n";
                 for (size_t i = 0; i < child.shape_vector.size(); i++) {
                     if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
                         broadcast_dims.push_back(i);
@@ -354,9 +355,9 @@ namespace deepc {
             child.parent1 = this;
             child.parent2 = &other;
             
-            child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
+            child.grad_fn = [this, &other, child, broadcasted_this, broadcasted_other]() {
                 std::vector<int> broadcast_dims;
-                
+                std::cout << "- GRAD FN\n";
                 for (size_t i = 0; i < child.shape_vector.size(); i++) {
                     if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
                         broadcast_dims.push_back(i);
@@ -418,9 +419,9 @@ namespace deepc {
             child.parent1 = this;
             child.parent2 = &other;
             
-            child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
+            child.grad_fn = [this, &other, child, broadcasted_this, broadcasted_other]() {
                 std::vector<int> broadcast_dims;
-                
+                std::cout << "* GRAD FN\n";
                 for (size_t i = 0; i < child.shape_vector.size(); i++) {
                     if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
                         broadcast_dims.push_back(i);
@@ -482,9 +483,9 @@ namespace deepc {
             child.parent1 = this;
             child.parent2 = &other;
             
-            child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
+            child.grad_fn = [this, &other, child, broadcasted_this, broadcasted_other]() {
                 std::vector<int> broadcast_dims;
-                
+                std::cout << "/ GRAD FN\n";
                 for (size_t i = 0; i < child.shape_vector.size(); i++) {
                     if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
                         broadcast_dims.push_back(i);
@@ -540,7 +541,7 @@ namespace deepc {
     
         if (requires_grad) {
             child.parent1 = this;
-            child.grad_fn = [this, &child, exponent]() {
+            child.grad_fn = [this, child, exponent]() {
                 for (size_t i = 0; i < child.grad.size(); i++) {
                     this->grad[i] += child.grad[i] * exponent * std::pow(this->value_vector[i], exponent - 1);
                 }
@@ -562,7 +563,7 @@ namespace deepc {
     
         if (requires_grad) {
             child.parent1 = this;
-            child.grad_fn = [this, &child]() {
+            child.grad_fn = [this, child]() {
                 for (size_t i = 0; i < child.grad.size(); i++) {
                     datatype sig = child.value_vector[i];
                     this->grad[i] += child.grad[i] * sig * (1 - sig);
@@ -583,7 +584,7 @@ namespace deepc {
     
         if (requires_grad) {
             child.parent1 = this;
-            child.grad_fn = [this, &child]() {
+            child.grad_fn = [this, child]() {
                 for (size_t i = 0; i < child.grad.size(); i++) {
                     datatype tanh_val = child.value_vector[i];
                     this->grad[i] += child.grad[i] * (1 - tanh_val * tanh_val);
@@ -606,7 +607,7 @@ namespace deepc {
         if (requires_grad) {
             child.parent1 = this;
     
-            child.grad_fn = [this, &child]() {
+            child.grad_fn = [this, child]() {
                 for (size_t i = 0; i < child.grad.size(); i++) {
                     if (this->value_vector[i] > 0) {
                         this->grad[i] += child.grad[i]; 
@@ -629,7 +630,7 @@ namespace deepc {
         if (requires_grad) {
             child.parent1 = this;
 
-            child.grad_fn = [this, &child] {
+            child.grad_fn = [this, child] {
                 for (size_t i = 0; i < child.grad.size(); i++) {
                     this->grad[i] += child.grad[i] * std::exp(this->value_vector[i]);
                 }
@@ -650,7 +651,7 @@ namespace deepc {
         if (requires_grad) {
             child.parent1 = this;
 
-            child.grad_fn = [this, &child] {
+            child.grad_fn = [this, child] {
                 for (size_t i = 0; i < child.grad.size(); i++) {
                     this->grad[i] += child.grad[i] * std::cos(this->value_vector[i]);
                 }
@@ -855,7 +856,8 @@ namespace deepc {
             result.parent1 = this;
             result.parent2 = &other;
     
-            result.grad_fn = [this, &other, &result, rowsA, colsA, colsB, rowsB]() {
+            result.grad_fn = [this, &other, result, rowsA, colsA, colsB, rowsB]() {
+                std::cout << "MATMUL GRAD FN\n";
                 if (this->requires_grad) {
                     Tensor<datatype> this_grad(this->shape_vector, false);
                     std::fill(this_grad.value_vector.begin(), this_grad.value_vector.end(), 0);
