@@ -22,13 +22,58 @@ struct Layer {
     }
 };
 
+class Optimizer {
+protected:
+    float lr;  
+
+public:
+    Optimizer(float learning_rate) : lr(learning_rate) {}
+
+    virtual void step(std::vector<Layer*>& layers) = 0; 
+};
+
+class SGD : public Optimizer {
+public:
+    SGD(float learning_rate) : Optimizer(learning_rate) {} 
+
+    void step(std::vector<Layer*>& layers) override {
+        for (auto& layer : layers) {
+            if (layer->weight->requiresGrad()) {
+                std::vector<float> tmp = layer->weight->getFlattenedVector();
+                for (auto& x : tmp) {
+                    x *= lr;
+                }
+                layer->weight->setValue(tmp);
+            }
+            if (layer->bias->requiresGrad()) {
+                std::vector<float> tmp = layer->bias->getFlattenedVector();
+                for (auto& x : tmp) {
+                    x *= lr;
+                }
+                layer->bias->setValue(tmp);
+            }
+        }
+    }
+};
+
 class LinearNetwork {
 private:
     std::vector<Layer*> layers;
     Tensor<float>* input;
     std::vector<Tensor<float>*> temp;
+    Optimizer* opt;
 
 public:
+    LinearNetwork(Optimizer* opt) : opt(opt) {}  
+
+    void setOptimizer(Optimizer* opt) {
+        this->opt = opt;
+    }
+
+    void step() {
+        opt->step(this->layers); 
+    }
+
     void addLayer(int input_features, int output_features, const std::string& activation = "") {
         layers.push_back(new Layer(input_features, output_features, activation));
     }
@@ -44,7 +89,6 @@ public:
                 temp.push_back(weighted);
                 Tensor<float>* biased = new Tensor<float>(*weighted + *(layer->bias));
                 temp.push_back(biased);
-
             } else {
                 Tensor<float>* weighted = new Tensor<float>(temp.back()->matmul2D(*(layer->weight)));
                 temp.push_back(weighted);
@@ -86,32 +130,33 @@ public:
             layer->bias->resetTensor();
         }
     }
-    
-
-
 };
 
 int main() {
-    Tensor<float>* input1   = new Tensor<float>({5,2},  std::vector<float>(5*2, 0.1f), true);
-    Tensor<float>* test     = new Tensor<float>({5,2},  std::vector<float>(5*2, 0.3f), true);
+    Tensor<float>* input1 = new Tensor<float>({5, 2}, std::vector<float>(5 * 2, 0.1f), true);
+    Tensor<float>* test = new Tensor<float>({5, 2}, std::vector<float>(5 * 2, 0.3f), true);
 
-    LinearNetwork nn;
+    SGD* sgd = new SGD(0.01);  
+
+    
+    LinearNetwork nn(sgd);
     nn.addLayer(2, 16, "sigmoid");
     nn.addLayer(16, 2, "sigmoid");
 
-    Tensor<float>* output = nn.forward(input1);
-    Tensor<float>* loss = new Tensor<float>(*output - *test);
     
-    loss->backward();
-    input1->getGrad().view();
+    for (int epoch = 0; epoch < 10; epoch++) {  // Train for 10 epochs
+        Tensor<float>* output = nn.forward(input1);
+        Tensor<float>* loss = new Tensor<float>(*output - *test);
 
-    nn.zeroGrad();
-    delete loss;
+        
+        loss->backward();
+        nn.step();      // Apply optimizer
+        nn.zeroGrad();  // Clear gradients
 
-    input1->getGrad().view();
+        delete loss;
+        // delete output;
+    }
 
-    output = nn.forward(input1);
-    loss = new Tensor<float>(*output - *test);
-    loss->backward();
-    input1->getGrad().view();
+    delete input1;
+    delete test;
 }
