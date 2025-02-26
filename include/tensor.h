@@ -28,6 +28,19 @@ namespace deepc {
             void initGrad(int data_length);
 
         public:
+            ~Tensor() {
+                resetTensor();
+            }
+    
+            void resetTensor() {
+                this->parent1 = nullptr;
+                this->parent2 = nullptr;
+                this->grad_fn = nullptr;
+
+                this->requires_grad = this->requires_grad;
+                setRequiresGrad(this->requires_grad);
+            }
+
             void checkParents() {
                 if (parent1 == nullptr) std::cout << "No parent1" << std::endl;
                 else std::cout << parent2 << std::endl;

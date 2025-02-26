@@ -365,7 +365,6 @@ namespace deepc {
             
             child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
                 std::vector<int> broadcast_dims;
-                std::cout << "- GRAD FN\n";
                 for (size_t i = 0; i < child.shape_vector.size(); i++) {
                     if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
                         broadcast_dims.push_back(i);
