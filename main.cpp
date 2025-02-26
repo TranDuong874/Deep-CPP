@@ -133,30 +133,75 @@ public:
 };
 
 int main() {
-    Tensor<float>* input1 = new Tensor<float>({5, 2}, std::vector<float>(5 * 2, 0.1f), true);
-    Tensor<float>* test = new Tensor<float>({5, 2}, std::vector<float>(5 * 2, 0.3f), true);
+
+    // Load the MNIST dataset
+    std::vector<std::pair<std::vector<float>, std::vector<float>>> data = DataLoader::load_mnist("mnist_784.csv", 1000);
+
+    int num_train   = 800;  
+    int num_test    = 200;  
+
+    std::vector<std::pair<std::vector<float>, std::vector<float>>> train_data(data.begin(), data.begin() + num_train);
+    std::vector<std::pair<std::vector<float>, std::vector<float>>> test_data(data.begin() + num_train, data.end());
+
+    std::vector<float> all_train_inputs;
+    for (const auto& row : train_data) {
+        all_train_inputs.insert(all_train_inputs.end(), row.first.begin(), row.first.end());
+    }
+    std::vector<float> all_train_targets;
+    for (const auto& row : train_data) {
+        all_train_targets.insert(all_train_targets.end(), row.second.begin(), row.second.end());
+    }
+    std::vector<float> all_test_inputs;
+    for (const auto& row : test_data) {
+        all_test_inputs.insert(all_test_inputs.end(), row.first.begin(), row.first.end());
+    }
+    std::vector<float> all_test_targets;
+    for (const auto& row : test_data) {
+        all_test_targets.insert(all_test_targets.end(), row.second.begin(), row.second.end());
+    }
+
+    Tensor<float>* train_inputs = new Tensor<float>({num_train, 784}, all_train_inputs, true);  
+    Tensor<float>* train_targets = new Tensor<float>({num_train, 10}, all_train_targets, false);  
+    // Tensor<float>* test_inputs = new Tensor<float>({784, num_test}, all_test_inputs, true);  
+    // Tensor<float>* test_targets = new Tensor<float>({10, num_test}, all_test_targets, false);  
+
+
+    // Tensor<float>* input1 = new Tensor<float>({5, 2}, std::vector<float>(5 * 2, 0.1f), true);
+    // Tensor<float>* test = new Tensor<float>({5, 2}, std::vector<float>(5 * 2, 0.3f), true);
 
     SGD* sgd = new SGD(0.01);  
 
     
     LinearNetwork nn(sgd);
-    nn.addLayer(2, 16, "sigmoid");
-    nn.addLayer(16, 2, "sigmoid");
+    nn.addLayer(784, 128, "relu");
+    nn.addLayer(128, 64, "relu");
+    nn.addLayer(64, 10, "");
 
-    
-    for (int epoch = 0; epoch < 10; epoch++) {  // Train for 10 epochs
-        Tensor<float>* output = nn.forward(input1);
-        Tensor<float>* loss = new Tensor<float>(*output - *test);
-
+    for (int epoch = 0; epoch < 5; epoch++) {  // Train for 10 epochs
+        Tensor<float>* output = nn.forward(train_inputs);
+        output->view();
         
-        loss->backward();
-        nn.step();      // Apply optimizer
-        nn.zeroGrad();  // Clear gradients
+        // MSE
+        Tensor<float>* diff = new Tensor<float>(*output - *train_targets);
+        Tensor<float>* squared  = new Tensor<float>(diff->pow(2));
+        Tensor<float>* summed = new Tensor<float>(squared->sum());
+        Tensor<float>* averaged = new Tensor<float>(*summed / output->getNumberOfElements());
+        
 
-        delete loss;
+        averaged->view(); 
+        std::cout << std::endl;
+
+        averaged->backward();
+        nn.step();    
+        nn.zeroGrad();  
+
+        delete diff;
+        delete squared;
+        delete summed;
+        delete averaged;
         // delete output;
     }
 
-    delete input1;
-    delete test;
+    delete train_inputs;
+    delete train_targets;
 }

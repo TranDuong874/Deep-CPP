@@ -66,6 +66,8 @@ namespace deepc {
                 return *this;
             }
             
+            Tensor<datatype> sum();
+
             Tensor(const Tensor<datatype>& other);
             Tensor(std::vector<int> shape_vector, bool requires_grad = false);
             Tensor(std::vector<int> shape_vector, std::vector<datatype> value_vector, bool requires_grad = false);
@@ -90,11 +92,21 @@ namespace deepc {
 
             Tensor<datatype> operator*(float scalar) const {
                 Tensor result = *this;
-                for (auto& val : result.data) {
+                for (auto& val : result.value_vector) {
                     val *= scalar;
                 }
                 return result;
             }
+
+            Tensor<datatype> operator/(float scalar) const {
+                Tensor result = *this;
+                for (auto& val : result.value_vector) {
+                    if (scalar == 0) throw std::runtime_error("Division of tensor by 0 scalar");
+                    val /= scalar;
+                }
+                return result;
+            }
+
             Tensor<datatype> operator+(Tensor<datatype>& other);
             Tensor<datatype> operator-(Tensor<datatype>& other);
             Tensor<datatype> operator*(Tensor<datatype>& other);

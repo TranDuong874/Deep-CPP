@@ -815,6 +815,30 @@ namespace deepc {
     }
 
     template <class datatype>
+    Tensor<datatype> Tensor<datatype>::sum() {
+        std::vector<int> result_shape = {1};
+        Tensor<datatype> child(result_shape, this->requires_grad);
+        
+        datatype sum_value = 0;
+        for (size_t i = 0; i < value_vector.size(); i++) {
+            sum_value += this->value_vector[i];
+        }
+        
+        child.value_vector[0] = sum_value;
+        
+        if (requires_grad) {
+            child.parent1 = this;
+            child.grad_fn = [this, &child]() {
+                for (size_t i = 0; i < this->grad.size(); i++) {
+                    this->grad[i] += child.grad[0]; 
+                }
+            };
+        }
+        
+        return child;
+    }
+
+    template <class datatype>
     void Tensor<datatype>::fillBroadcast(Tensor<datatype> &result_tensor, Tensor<datatype> &original_tensor, const std::vector<int>& padded_original_shape) {
         int rank = result_tensor.shape_vector.size();
         
