@@ -22,7 +22,7 @@ namespace deepc {
 
             std::function<void()> grad_fn;
             std::vector<datatype> grad;
-
+ 
             std::pair<int, int> getFlatIndexAndStride(std::vector<int> index);
             bool dimMatch(const Tensor<datatype>& other);
             void initGrad(int data_length);

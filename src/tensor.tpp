@@ -256,16 +256,23 @@ namespace deepc {
     void Tensor<datatype>::backward_recursion() {
         if (grad_fn) {
             grad_fn();
-            
-            std::cerr << "GRad FN ran";
-            if (parent1) {
-                std::cout << "Hello 1";
+            std::cerr << std::endl;
+            std::cerr << ">>>>>\t" << this << std::endl;
+            std::cerr << this << "->" << "parent 1 = " << parent1 << std::endl;
+            std::cerr << this << "->" << "parent 2 = " << parent2 << std::endl;
+
+
+            if (parent1 != nullptr) {
+                std::cerr << "visiting parent 1" << std::endl;
+                // std::cerr << this << "->" << "parent 1 = " << parent1 << std::endl;
                 if (parent1->grad.empty()) {
                     parent1->grad.resize(parent1->value_vector.size(), 0);
                 }
                 parent1->backward_recursion();
             }
-            if (parent2) {
+            if (parent2 != nullptr) {
+                std::cerr << "visiting parent 2" << std::endl;
+                // std::cerr << this << "->" << "parent 2 = " << parent2 << std::endl;
                 if (parent2->grad.empty()) {
                     parent2->grad.resize(parent2->value_vector.size(), 0);
                 }
@@ -292,7 +299,6 @@ namespace deepc {
             
             child.grad_fn = [this, &other, child, broadcasted_this, broadcasted_other]() {
                 std::vector<int> broadcast_dims;
-                std::cout << "+ GRAD FN\n";
                 for (size_t i = 0; i < child.shape_vector.size(); i++) {
                     if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
                         broadcast_dims.push_back(i);
@@ -842,7 +848,7 @@ namespace deepc {
     
         std::vector<int> result_shape = {rowsA, colsB};
         Tensor<datatype> result(result_shape, this->requires_grad || other.requires_grad);
-        std::cout << "MATMUL: " << this << " " << this->requires_grad << " " << &other << " " << other.requires_grad << "\n";
+        
         // Perform matrix multiplication
         for (int i = 0; i < rowsA; i++) {
             for (int j = 0; j < colsB; j++) {
@@ -857,7 +863,6 @@ namespace deepc {
             result.parent2 = &other;
     
             result.grad_fn = [this, &other, result, rowsA, colsA, colsB, rowsB]() {
-                std::cout << "MATMUL GRAD FN\n";
                 if (this->requires_grad) {
                     Tensor<datatype> this_grad(this->shape_vector, false);
                     std::fill(this_grad.value_vector.begin(), this_grad.value_vector.end(), 0);
