@@ -105,11 +105,55 @@ public:
             } else if (layer->activation == "tanh") {
                 Tensor<float>* activated = new Tensor<float>(temp.back()->tanh());
                 temp.push_back(activated);
+            } else if (layer->activation == "softmax") {
+                Tensor<float>* activated = new Tensor<float>(temp.back()->softmax2D());
+                temp.push_back(activated);
             }
         }
 
         return temp.back();
     }
+
+    Tensor<float> predict(Tensor<float> input_tensor) {
+        Tensor<float>* input_copy = new Tensor<float>(input_tensor); 
+    
+        std::vector<Tensor<float>*> temp_copy;
+        Tensor<float>* input_copy_ptr = input_copy;
+    
+        for (auto& layer : layers) {
+            Tensor<float>* weighted = new Tensor<float>(input_copy_ptr->matmul2D(*(layer->weight)));
+            temp_copy.push_back(weighted);
+    
+            Tensor<float>* biased = new Tensor<float>(*weighted + *(layer->bias));
+            temp_copy.push_back(biased);
+    
+            // Apply the activation function
+            if (layer->activation == "sigmoid") {
+                Tensor<float>* activated = new Tensor<float>(temp_copy.back()->sigmoid());
+                temp_copy.push_back(activated);
+            } else if (layer->activation == "relu") {
+                Tensor<float>* activated = new Tensor<float>(temp_copy.back()->relu());
+                temp_copy.push_back(activated);
+            } else if (layer->activation == "tanh") {
+                Tensor<float>* activated = new Tensor<float>(temp_copy.back()->tanh());
+                temp_copy.push_back(activated);
+            } else if (layer->activation == "softmax") {
+                Tensor<float>* activated = new Tensor<float>(temp_copy.back()->softmax2D());
+                temp_copy.push_back(activated);
+            }
+    
+            input_copy_ptr = temp_copy.back();
+        }
+
+        Tensor<float> prediction = *temp_copy.back();
+        
+        for (auto t : temp_copy) {
+            delete t;
+        }
+    
+        return prediction;
+    }
+    
 
     void backward() {
         temp.back()->backward();
@@ -135,10 +179,10 @@ public:
 int main() {
 
     // Load the MNIST dataset
-    std::vector<std::pair<std::vector<float>, std::vector<float>>> data = DataLoader::load_mnist("mnist_784.csv", 1000);
+    std::vector<std::pair<std::vector<float>, std::vector<float>>> data = DataLoader::load_mnist("mnist_784.csv", 10000);
 
-    int num_train   = 800;  
-    int num_test    = 200;  
+    int num_train   = 8000;  
+    int num_test    = 2000;  
 
     std::vector<std::pair<std::vector<float>, std::vector<float>>> train_data(data.begin(), data.begin() + num_train);
     std::vector<std::pair<std::vector<float>, std::vector<float>>> test_data(data.begin() + num_train, data.end());
@@ -162,25 +206,25 @@ int main() {
 
     Tensor<float>* train_inputs = new Tensor<float>({num_train, 784}, all_train_inputs, true);  
     Tensor<float>* train_targets = new Tensor<float>({num_train, 10}, all_train_targets, false);  
-    // Tensor<float>* test_inputs = new Tensor<float>({784, num_test}, all_test_inputs, true);  
-    // Tensor<float>* test_targets = new Tensor<float>({10, num_test}, all_test_targets, false);  
+    Tensor<float>* test_inputs = new Tensor<float>({num_test, 784 }, all_test_inputs, true);  
+    Tensor<float>* test_targets = new Tensor<float>({num_test, 10}, all_test_targets, false);  
 
 
     // Tensor<float>* input1 = new Tensor<float>({5, 2}, std::vector<float>(5 * 2, 0.1f), true);
     // Tensor<float>* test = new Tensor<float>({5, 2}, std::vector<float>(5 * 2, 0.3f), true);
 
-    SGD* sgd = new SGD(0.01);  
+    SGD* sgd = new SGD(0.001);  
 
     
     LinearNetwork nn(sgd);
     nn.addLayer(784, 128, "relu");
     nn.addLayer(128, 64, "relu");
-    nn.addLayer(64, 10, "");
+    nn.addLayer(64, 10, "softmax");
 
-    for (int epoch = 0; epoch < 5; epoch++) {  // Train for 10 epochs
+    for (int epoch = 0; epoch < 10; epoch++) {  // Train for 10 epochs
         Tensor<float>* output = nn.forward(train_inputs);
-        output->view();
-        
+        // output->view();
+
         // MSE
         Tensor<float>* diff = new Tensor<float>(*output - *train_targets);
         Tensor<float>* squared  = new Tensor<float>(diff->pow(2));
@@ -188,7 +232,7 @@ int main() {
         Tensor<float>* averaged = new Tensor<float>(*summed / output->getNumberOfElements());
         
 
-        averaged->view(); 
+        std::cout << averaged->getFlattenedVector()[0] << std::endl; 
         std::cout << std::endl;
 
         averaged->backward();
@@ -199,8 +243,15 @@ int main() {
         delete squared;
         delete summed;
         delete averaged;
-        // delete output;
+        // delete output;   
     }
+
+    std::cout << "Done" << std::endl;
+
+    Tensor<float> test_pred = nn.predict(*test_inputs);
+    Tensor<float> MSE = (test_pred - *test_targets).pow(2).sum() / test_pred.getNumberOfElements();
+    MSE.view();
+
 
     delete train_inputs;
     delete train_targets;

@@ -172,8 +172,7 @@ namespace deepc {
         }
 
         if (new_shape.empty()) {
-            Tensor<datatype> result({1}); // Scalar tensor
-            setValue({this->value_vector[flat_index]});
+            Tensor<datatype> result({this->value_vector[flat_index]}); // Scalar tensor
             return result;
         }
 
@@ -205,7 +204,7 @@ namespace deepc {
 
     template <class datatype>
     void  Tensor<datatype>::view(int index, int dim, int indent) {
-        if (dim == shape_vector.size() - 1) {  // Last dimension: Print values on the same line
+        if (dim == shape_vector.size() - 1) { 
             std::cout << std::string(indent, ' ') << "[";
             for (int i = 0; i < shape_vector[dim]; i++) {
                 std::cout << value_vector[index + i];
@@ -428,7 +427,6 @@ namespace deepc {
             
             child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
                 std::vector<int> broadcast_dims;
-                std::cout << "* GRAD FN\n";
                 for (size_t i = 0; i < child.shape_vector.size(); i++) {
                     if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
                         broadcast_dims.push_back(i);
@@ -492,7 +490,6 @@ namespace deepc {
             
             child.grad_fn = [this, &other, &child, broadcasted_this, broadcasted_other]() {
                 std::vector<int> broadcast_dims;
-                std::cout << "/ GRAD FN\n";
                 for (size_t i = 0; i < child.shape_vector.size(); i++) {
                     if (i >= this->shape_vector.size() || this->shape_vector[i] == 1) {
                         broadcast_dims.push_back(i);
@@ -648,6 +645,27 @@ namespace deepc {
     }
 
     template <class datatype>
+    Tensor<datatype> Tensor<datatype>::log() {
+        Tensor<datatype> child(shape_vector, requires_grad);
+
+        for (size_t i = 0; i < value_vector.size(); i++) {
+            child.value_vector[i] = std::log(value_vector[i]);
+        }
+
+        if (requires_grad) {
+            child.parent1 = this;
+
+            child.grad_fn = [this, &child] {
+                for (size_t i = 0; i < child.grad.size(); i++) {
+                    this->grad[i] += child.grad[i] / this->value_vector[i];
+                }
+            };
+        }
+
+        return child;
+    }
+
+    template <class datatype>
     Tensor<datatype> Tensor<datatype>::sin() {
         Tensor<datatype> child(shape_vector, requires_grad);
 
@@ -667,6 +685,53 @@ namespace deepc {
 
         return child;
     }
+
+    template <class datatype>
+    Tensor<datatype> Tensor<datatype>::softmax2D() {
+        if (shape_vector.size() > 2) throw std::runtime_error("Softmax function can only be used for 2D tensor");
+         
+        Tensor<datatype> child(shape_vector, requires_grad);
+
+        // Apply softmax to each row (for example)
+        for (size_t row = 0; row < shape_vector[0]; row++) {
+            datatype sum_exp = 0.0f;
+
+            // Sum of exp for each row
+            for (size_t col = 0; col < shape_vector[1]; col++) {
+                sum_exp += std::exp(value_vector[row * shape_vector[1] + col]);
+            }
+
+            // Apply softmax element-wise for each row
+            for (size_t col = 0; col < shape_vector[1]; col++) {
+                child.value_vector[row * shape_vector[1] + col] = 
+                    std::exp(value_vector[row * shape_vector[1] + col]) / sum_exp;
+            }
+        }
+        
+
+        if (requires_grad) {
+            child.parent1 = this;
+
+            // Define the gradient function for backpropagation
+            child.grad_fn = [this, &child]() {
+                for (size_t row = 0; row < shape_vector[0]; row++) {
+                    for (size_t i = 0; i < shape_vector[1]; i++) {
+                        datatype softmax_val = child.value_vector[row * shape_vector[1] + i];
+                        for (size_t j = 0; j < shape_vector[1]; j++) {
+                            if (i == j) {
+                                this->grad[row * shape_vector[1] + i] += child.grad[row * shape_vector[1] + i] * softmax_val * (1 - softmax_val);
+                            } else {
+                                this->grad[row * shape_vector[1] + j] += child.grad[row * shape_vector[1] + i] * (-softmax_val * child.value_vector[row * shape_vector[1] + j]);
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        return child;
+    }
+
 
     template <class datatype>
     std::vector<datatype> Tensor<datatype>::getFlattenedVector() {
@@ -737,6 +802,7 @@ namespace deepc {
         }
         return flat_index;
     }
+    
 
     template <class datatype>
     Tensor<datatype> Tensor<datatype>::dimsum(const std::vector<int>& dims) {

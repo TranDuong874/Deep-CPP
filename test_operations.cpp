@@ -140,6 +140,69 @@ void test_set_value_with_sub_tensor() {
     std::cout << "test_set_value_with_sub_tensor passed!" << std::endl;
 }
 
+void test_log() {
+    deepc::Tensor<float> x({2, 2}, {1.0, 2.0, 3.0, 4.0}, true);
+
+    deepc::Tensor<float> z = x.log();
+
+    std::vector<float> expected_values = {0.0, std::log(2.0f), std::log(3.0f), std::log(4.0f)};
+    assert(compare(z.getFlattenedVector(), expected_values));
+
+    std::cout << "test_log passed!" << std::endl;
+}
+
+void test_log_grad() {
+    deepc::Tensor<float> x({2, 2}, {1.0, 2.0, 3.0, 4.0}, true);
+
+    deepc::Tensor<float> z = x.log();
+    z.backward();
+
+    std::vector<float> expected_grad = {1.0 / 1.0, 1.0 / 2.0, 1.0 / 3.0, 1.0 / 4.0};
+    assert(compare(x.getGrad().getFlattenedVector(), expected_grad));
+
+    std::cout << "test_log_grad passed!" << std::endl;
+}
+
+void test_softmax() {
+    deepc::Tensor<float> x({2, 3}, {1.0, 2.0, 3.0, 1.0, 2.0, 3.0}, true);
+
+    deepc::Tensor<float> z = x.softmax2D();
+
+    std::vector<float> expected_values = {
+        std::exp(1.0) / (std::exp(1.0) + std::exp(2.0) + std::exp(3.0)),
+        std::exp(2.0) / (std::exp(1.0) + std::exp(2.0) + std::exp(3.0)),
+        std::exp(3.0) / (std::exp(1.0) + std::exp(2.0) + std::exp(3.0)),
+        std::exp(1.0) / (std::exp(1.0) + std::exp(2.0) + std::exp(3.0)),
+        std::exp(2.0) / (std::exp(1.0) + std::exp(2.0) + std::exp(3.0)),
+        std::exp(3.0) / (std::exp(1.0) + std::exp(2.0) + std::exp(3.0))
+    };
+
+    assert(compare(z.getFlattenedVector(), expected_values));
+
+    std::cout << "test_softmax passed!" << std::endl;
+}
+
+void test_softmax_grad() {
+    deepc::Tensor<float> x({2, 3}, {1.0, 2.0, 3.0, 1.0, 2.0, 3.0}, true);
+
+    deepc::Tensor<float> z = x.softmax2D();
+    z.backward();
+
+    // For simplicity, we assume the gradient of the loss with respect to the softmax output is 1 for all elements
+    std::vector<float> expected_grad = {
+        z.getFlattenedVector()[0] * (1 - z.getFlattenedVector()[0]),
+        z.getFlattenedVector()[1] * (1 - z.getFlattenedVector()[1]),
+        z.getFlattenedVector()[2] * (1 - z.getFlattenedVector()[2]),
+        z.getFlattenedVector()[3] * (1 - z.getFlattenedVector()[3]),
+        z.getFlattenedVector()[4] * (1 - z.getFlattenedVector()[4]),
+        z.getFlattenedVector()[5] * (1 - z.getFlattenedVector()[5])
+    };
+
+    assert(compare(x.getGrad().getFlattenedVector(), expected_grad));
+
+    std::cout << "test_softmax_grad passed!" << std::endl;
+}
+
 int main() {
     test_grad_addition();
     test_grad_multiplication();
@@ -148,6 +211,9 @@ int main() {
     test_grad_broadcasting();
     test_grad_matmul2D();
     test_set_value_with_sub_tensor();
+    test_log();
+    test_log_grad();
+    test_softmax();
 
     std::cout << "All tests passed!" << std::endl;
     return 0;

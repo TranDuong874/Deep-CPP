@@ -121,6 +121,8 @@ namespace deepc {
             Tensor<datatype> exp();
             Tensor<datatype> sin();
             Tensor<datatype> cos();
+            Tensor<datatype> log();
+            Tensor<datatype> softmax2D();
 
             std::vector<datatype> getFlattenedVector();
             std::pair<Tensor<datatype>, Tensor<datatype>> broadcast(Tensor<datatype>& other);
