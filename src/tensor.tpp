@@ -42,13 +42,25 @@ namespace deepc {
         this->grad = std::vector<datatype>(data_length, 0.0);
     }
 
-    // Create Tensor form another tensor
     template <class datatype>
-    Tensor<datatype>::Tensor(const Tensor<datatype>& other, bool requires_grad) {
-        this->shape_vector = other.shape_vector;  
+    Tensor<datatype>::Tensor(const Tensor<datatype>& other) {
+        this->shape_vector = other.shape_vector;
         this->value_vector = other.value_vector;
-        setRequiresGrad(requires_grad);
+        this->requires_grad = other.requires_grad;  
+    
+        this->parent1 = other.parent1;
+        this->parent2 = other.parent2;
+        this->grad_fn = other.grad_fn;
+        this->grad = other.grad;
     }
+
+    // // Create Tensor form another tensor
+    // template <class datatype>
+    // Tensor<datatype>::Tensor(const Tensor<datatype>& other, bool requires_grad) {
+    //     this->shape_vector = other.shape_vector;  
+    //     this->value_vector = other.value_vector;
+    //     setRequiresGrad(requires_grad);
+    // }
 
     // Create empty tensor with shape only
     // Data set to 0 by default
@@ -221,7 +233,7 @@ namespace deepc {
     }
 
     template <class datatype>
-    Tensor<datatype> Tensor<datatype>::getGrad() const {
+    Tensor<datatype> Tensor<datatype>::getGrad() {
         return Tensor<datatype>(this->shape_vector, grad);
     }
 
@@ -234,10 +246,8 @@ namespace deepc {
         if (this->grad.empty()) {
             grad.resize(value_vector.size(), 1);
         } else {
-            std::fill(this->grad.begin(), grad.end(), 1);
+            std::fill(this->grad.begin(), this->grad.end(), 1);
         }            
-
-        
 
         backward_recursion();
     }
@@ -246,18 +256,15 @@ namespace deepc {
     void Tensor<datatype>::backward_recursion() {
         if (grad_fn) {
             grad_fn();
-
-            std::cout << "Current node: " << this << std::endl;
             
             if (parent1) {
-                std::cout << "Parent1: " << parent1 << std::endl;
+                std::cout << "Hello 1";
                 if (parent1->grad.empty()) {
                     parent1->grad.resize(parent1->value_vector.size(), 0);
                 }
                 parent1->backward_recursion();
             }
             if (parent2) {
-                std::cout << "Parent2: " << parent2 << std::endl;
                 if (parent2->grad.empty()) {
                     parent2->grad.resize(parent2->value_vector.size(), 0);
                 }
@@ -593,7 +600,7 @@ namespace deepc {
     
         // F(x) = max(0,x)
         for (size_t i = 0; i < value_vector.size(); i++) {
-            child.value_vector[i] = std::max(0.0, value_vector[i]);
+            child.value_vector[i] = std::max((datatype)0.0, value_vector[i]);
         }
     
         if (requires_grad) {
@@ -834,7 +841,7 @@ namespace deepc {
     
         std::vector<int> result_shape = {rowsA, colsB};
         Tensor<datatype> result(result_shape, this->requires_grad || other.requires_grad);
-    
+        std::cout << "MATMUL: " << this << " " << this->requires_grad << " " << &other << " " << other.requires_grad << "\n";
         // Perform matrix multiplication
         for (int i = 0; i < rowsA; i++) {
             for (int j = 0; j < colsB; j++) {
@@ -905,5 +912,24 @@ namespace deepc {
     template <class datatype>
     int Tensor<datatype>::getNumberOfElements() {
         return this->value_vector.size();
+    }
+
+    template <class datatype>
+    void Tensor<datatype>::getInfo() {
+        std::cout << "Shape:\t";
+        for (int i = 0; i < shape_vector.size(); i++) {
+            std::cout << shape_vector[i] << " ";
+        }
+        std::cout << "\tRequires Grad: " << requires_grad;
+        std::cout << "\tThis: " << this;
+        std::cout << "\tParent1: " << parent1;
+        std::cout << "\tParent2: " << parent2;
+        std::cout << std::endl;
+    }
+    
+
+    template <class datatype>
+    bool Tensor<datatype>::requiresGrad() {
+        return this->requires_grad;
     }
 }

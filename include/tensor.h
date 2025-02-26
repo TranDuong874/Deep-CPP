@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include <iostream>
+#include <iomanip> 
 
 namespace deepc {
     template <class datatype>
@@ -27,8 +28,32 @@ namespace deepc {
             void initGrad(int data_length);
 
         public:
+            void checkParents() {
+                if (parent1 == nullptr) std::cout << "No parent1" << std::endl;
+                else std::cout << parent2 << std::endl;
+                if (parent2 == nullptr) std::cout << "No parent2" << std::endl;
+                else std::cout << parent1 << std::endl;
+
+            }
             Tensor();
-            Tensor(const Tensor<datatype>& other, bool requires_grad = false);
+            //Copy
+
+            Tensor& operator=(const Tensor& other) {
+                if (this != &other) {
+                    this->shape_vector = other.shape_vector;
+                    this->value_vector = other.value_vector;
+                    this->requires_grad = other.requires_grad;
+                    
+                    this->parent1 = other.parent1;
+                    this->parent2 = other.parent2;
+                    this->grad_fn = other.grad_fn;
+                    this->grad = other.grad;
+                }
+
+                return *this;
+            }
+            
+            Tensor(const Tensor<datatype>& other);
             Tensor(std::vector<int> shape_vector, bool requires_grad = false);
             Tensor(std::vector<int> shape_vector, std::vector<datatype> value_vector, bool requires_grad = false);
             Tensor(datatype value, bool requires_grad = false);
@@ -37,19 +62,31 @@ namespace deepc {
             void setValue(std::vector<int> index, Tensor<datatype>& tensor);
             void setValue(Tensor<datatype>& tensor);
             void setRequiresGrad(bool requires_grad);
+            bool requiresGrad();
+            void getInfo();
+            
             int getNumberOfElements();
             std::vector<int> getShape();
             Tensor<datatype> getTensor(std::vector<int> index);
             void reshape(std::vector<int>& shape_vector);
             void view(int index = 0, int dim = 0, int indent = 0);
-            Tensor<datatype> getGrad() const;
+            Tensor<datatype> getGrad();
+
             void backward();
             void backward_recursion();
 
+            Tensor<datatype> operator*(float scalar) const {
+                Tensor result = *this;
+                for (auto& val : result.data) {
+                    val *= scalar;
+                }
+                return result;
+            }
             Tensor<datatype> operator+(Tensor<datatype>& other);
             Tensor<datatype> operator-(Tensor<datatype>& other);
             Tensor<datatype> operator*(Tensor<datatype>& other);
             Tensor<datatype> operator/(Tensor<datatype>& other);
+            Tensor<datatype> operator=(Tensor<datatype>& other);
 
             Tensor<datatype> matmul2D(Tensor<datatype>& other);
             Tensor<datatype> pow(int exponent);
