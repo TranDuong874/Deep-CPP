@@ -7,182 +7,19 @@
 #include "include/dataloader.h"
 #include <fstream>
 #include <sstream>
+#include "include/sgd.h"
+#include "include/linear_network.h"
 
 using namespace deepc;
 
-struct Layer {
-    Tensor<float>* weight;
-    Tensor<float>* bias;
-    std::string activation;
-
-    Layer(int input_features, int output_features, const std::string& activation) {
-        this->weight = new Tensor<float>({input_features, output_features}, std::vector<float>(input_features * output_features, 0.5f), true);
-        this->bias = new Tensor<float>({1, output_features}, std::vector<float>(output_features, 0.0f), true);
-        this->activation = activation;
-    }
-};
-
-class Optimizer {
-protected:
-    float lr;  
-
-public:
-    Optimizer(float learning_rate) : lr(learning_rate) {}
-
-    virtual void step(std::vector<Layer*>& layers) = 0; 
-};
-
-class SGD : public Optimizer {
-public:
-    SGD(float learning_rate) : Optimizer(learning_rate) {} 
-
-    void step(std::vector<Layer*>& layers) override {
-        for (auto& layer : layers) {
-            if (layer->weight->requiresGrad()) {
-                std::vector<float> tmp = layer->weight->getFlattenedVector();
-                for (auto& x : tmp) {
-                    x *= lr;
-                }
-                layer->weight->setValue(tmp);
-            }
-            if (layer->bias->requiresGrad()) {
-                std::vector<float> tmp = layer->bias->getFlattenedVector();
-                for (auto& x : tmp) {
-                    x *= lr;
-                }
-                layer->bias->setValue(tmp);
-            }
-        }
-    }
-};
-
-class LinearNetwork {
-private:
-    std::vector<Layer*> layers;
-    Tensor<float>* input;
-    std::vector<Tensor<float>*> temp;
-    Optimizer* opt;
-
-public:
-    LinearNetwork(Optimizer* opt) : opt(opt) {}  
-
-    void setOptimizer(Optimizer* opt) {
-        this->opt = opt;
-    }
-
-    void step() {
-        opt->step(this->layers); 
-    }
-
-    void addLayer(int input_features, int output_features, const std::string& activation = "") {
-        layers.push_back(new Layer(input_features, output_features, activation));
-    }
-
-    Tensor<float>* forward(Tensor<float>* input_tensor) {
-        input = input_tensor;
-
-        bool usedInput = false;
-        for (auto layer : layers) {
-            if (!usedInput) {
-                usedInput = true;
-                Tensor<float>* weighted = new Tensor<float>(this->input->matmul2D(*(layer->weight)));
-                temp.push_back(weighted);
-                Tensor<float>* biased = new Tensor<float>(*weighted + *(layer->bias));
-                temp.push_back(biased);
-            } else {
-                Tensor<float>* weighted = new Tensor<float>(temp.back()->matmul2D(*(layer->weight)));
-                temp.push_back(weighted);
-                Tensor<float>* biased = new Tensor<float>(*weighted + *(layer->bias));
-                temp.push_back(biased);
-            }
-
-            if (layer->activation == "sigmoid") {
-                Tensor<float>* activated = new Tensor<float>(temp.back()->sigmoid());
-                temp.push_back(activated);
-            } else if (layer->activation == "relu") {
-                Tensor<float>* activated = new Tensor<float>(temp.back()->relu());
-                temp.push_back(activated);
-            } else if (layer->activation == "tanh") {
-                Tensor<float>* activated = new Tensor<float>(temp.back()->tanh());
-                temp.push_back(activated);
-            } else if (layer->activation == "softmax") {
-                Tensor<float>* activated = new Tensor<float>(temp.back()->softmax2D());
-                temp.push_back(activated);
-            }
-        }
-
-        return temp.back();
-    }
-
-    Tensor<float> predict(Tensor<float> input_tensor) {
-        Tensor<float>* input_copy = new Tensor<float>(input_tensor); 
-    
-        std::vector<Tensor<float>*> temp_copy;
-        Tensor<float>* input_copy_ptr = input_copy;
-    
-        for (auto& layer : layers) {
-            Tensor<float>* weighted = new Tensor<float>(input_copy_ptr->matmul2D(*(layer->weight)));
-            temp_copy.push_back(weighted);
-    
-            Tensor<float>* biased = new Tensor<float>(*weighted + *(layer->bias));
-            temp_copy.push_back(biased);
-    
-            // Apply the activation function
-            if (layer->activation == "sigmoid") {
-                Tensor<float>* activated = new Tensor<float>(temp_copy.back()->sigmoid());
-                temp_copy.push_back(activated);
-            } else if (layer->activation == "relu") {
-                Tensor<float>* activated = new Tensor<float>(temp_copy.back()->relu());
-                temp_copy.push_back(activated);
-            } else if (layer->activation == "tanh") {
-                Tensor<float>* activated = new Tensor<float>(temp_copy.back()->tanh());
-                temp_copy.push_back(activated);
-            } else if (layer->activation == "softmax") {
-                Tensor<float>* activated = new Tensor<float>(temp_copy.back()->softmax2D());
-                temp_copy.push_back(activated);
-            }
-    
-            input_copy_ptr = temp_copy.back();
-        }
-
-        Tensor<float> prediction = *temp_copy.back();
-        
-        for (auto t : temp_copy) {
-            delete t;
-        }
-    
-        return prediction;
-    }
-    
-
-    void backward() {
-        temp.back()->backward();
-    }
-
-    void zeroGrad() {
-        for (auto t : temp) {
-            delete t;
-        }
-        temp.clear();
-    
-        if (input) {
-            input->resetTensor();
-        }
-    
-        for (auto layer : layers) {
-            layer->weight->resetTensor();
-            layer->bias->resetTensor();
-        }
-    }
-};
-
+#include <fstream>
 int main() {
 
     // Load the MNIST dataset
-    std::vector<std::pair<std::vector<float>, std::vector<float>>> data = DataLoader::load_mnist("mnist_784.csv", 10000);
+    std::vector<std::pair<std::vector<float>, std::vector<float>>> data = DataLoader::load_mnist("mnist_784.csv", 1000);
 
-    int num_train   = 8000;  
-    int num_test    = 2000;  
+    int num_train   = 800;  
+    int num_test    = 200;  
 
     std::vector<std::pair<std::vector<float>, std::vector<float>>> train_data(data.begin(), data.begin() + num_train);
     std::vector<std::pair<std::vector<float>, std::vector<float>>> test_data(data.begin() + num_train, data.end());
@@ -209,50 +46,70 @@ int main() {
     Tensor<float>* test_inputs = new Tensor<float>({num_test, 784 }, all_test_inputs, true);  
     Tensor<float>* test_targets = new Tensor<float>({num_test, 10}, all_test_targets, false);  
 
+    SGD* sgd = new SGD(0.9);  
 
-    // Tensor<float>* input1 = new Tensor<float>({5, 2}, std::vector<float>(5 * 2, 0.1f), true);
-    // Tensor<float>* test = new Tensor<float>({5, 2}, std::vector<float>(5 * 2, 0.3f), true);
-
-    SGD* sgd = new SGD(0.001);  
-
-    
     LinearNetwork nn(sgd);
-    nn.addLayer(784, 128, "relu");
-    nn.addLayer(128, 64, "relu");
-    nn.addLayer(64, 10, "softmax");
+    nn.addLayer(784, 32, "relu");
+    nn.addLayer(32, 32, "relu");
+    nn.addLayer(32, 10, "softmax");
+    
+    
 
-    for (int epoch = 0; epoch < 10; epoch++) {  // Train for 10 epochs
+    for (int epoch = 0; epoch < 100; epoch++) {  // Train for 10 epochs
         Tensor<float>* output = nn.forward(train_inputs);
+
+        std::vector<float> output_values = output->getFlattenedVector();
+        std::vector<float> target_values = train_targets->getFlattenedVector();
+    
+        // Print a few predictions vs true values during training
+        std::cout << "Epoch " << epoch + 1 << " predictions:\n";
+        for (int i = 0; i < std::min(10, num_train); ++i) {  // Print first 10 samples
+            int pred_class = std::distance(output_values.begin() + i * 10, 
+                                           std::max_element(output_values.begin() + i * 10, output_values.begin() + (i + 1) * 10));
+    
+            int true_class = std::distance(target_values.begin() + i * 10, 
+                                           std::max_element(target_values.begin() + i * 10, target_values.begin() + (i + 1) * 10));
+    
+            std::cout << "Pred: " << pred_class << " True: " << true_class << std::endl;
+        }
+
         // output->view();
-
-        // MSE
-        Tensor<float>* diff = new Tensor<float>(*output - *train_targets);
-        Tensor<float>* squared  = new Tensor<float>(diff->pow(2));
-        Tensor<float>* summed = new Tensor<float>(squared->sum());
-        Tensor<float>* averaged = new Tensor<float>(*summed / output->getNumberOfElements());
-        
-
-        std::cout << averaged->getFlattenedVector()[0] << std::endl; 
+    
+        nn.backward(train_targets, "mse");
+        std::cout << std::endl;
+        // nn.getLayer(0)->weight->getGrad().view();
+        std::cout << "Gradient norm: "; 
+        nn.getLayer(0)->weight->getGrad().sum().view();
         std::cout << std::endl;
 
-        averaged->backward();
         nn.step();    
         nn.zeroGrad();  
-
-        delete diff;
-        delete squared;
-        delete summed;
-        delete averaged;
-        // delete output;   
     }
 
     std::cout << "Done" << std::endl;
 
     Tensor<float> test_pred = nn.predict(*test_inputs);
-    Tensor<float> MSE = (test_pred - *test_targets).pow(2).sum() / test_pred.getNumberOfElements();
-    MSE.view();
+    // test_pred.view();
 
+    std::vector<float> pred_values = test_pred.getFlattenedVector();
+    std::vector<float> target_values = test_targets->getFlattenedVector();
 
+    // Open a CSV file to write predictions
+    std::ofstream csv_file("test_predictions.csv");
+    csv_file << "Predicted,True\n";  // CSV header
+    
+    for (int i = 0; i < num_test; ++i) {
+        int pred_class = std::distance(pred_values.begin() + i * 10, 
+                                       std::max_element(pred_values.begin() + i * 10, pred_values.begin() + (i + 1) * 10));
+    
+        int true_class = std::distance(target_values.begin() + i * 10, 
+                                       std::max_element(target_values.begin() + i * 10, target_values.begin() + (i + 1) * 10));
+    
+        csv_file << pred_class << "," << true_class << "\n";  // Write to CSV
+    }
+    
+    csv_file.close();
+    std::cout << "Predictions saved to test_predictions.csv" << std::endl;
     delete train_inputs;
     delete train_targets;
 }

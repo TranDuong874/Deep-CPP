@@ -242,8 +242,6 @@ namespace deepc {
             throw std::runtime_error("Called backward() on a non-requires_grad tensor");
         }
 
-       
-
         if (this->grad.empty()) {
             grad.resize(value_vector.size(), 1);
         } else {
@@ -481,7 +479,7 @@ namespace deepc {
         Tensor<datatype> child(broadcasted_this.shape_vector, requires_grad || other.requires_grad);
     
         for (size_t i = 0; i < broadcasted_this.value_vector.size(); i++) {
-            child.value_vector[i] = broadcasted_this.value_vector[i] - broadcasted_other.value_vector[i];
+            child.value_vector[i] = broadcasted_this.value_vector[i] / broadcasted_other.value_vector[i];
         }
     
         if (requires_grad || other.requires_grad) {
@@ -622,6 +620,29 @@ namespace deepc {
     
         return child;
     }
+
+    template <class datatype>
+    Tensor<datatype> Tensor<datatype>::leaky_relu(float alpha) {
+        Tensor<datatype> child(shape_vector, requires_grad);
+        
+        for (size_t i = 0; i < value_vector.size(); i++) {
+            child.value_vector[i] = value_vector[i] > 0 ? value_vector[i] : alpha * value_vector[i];
+        }
+        
+        if (requires_grad) {
+            child.parent1 = this;
+            
+            child.grad_fn = [this, &child, alpha]() {
+                for (size_t i = 0; i < child.grad.size(); i++) {
+                    this->grad[i] += (this->value_vector[i] > 0 ? 1 : alpha) * child.grad[i];
+                }
+            };
+        }
+        
+        return child;
+    }
+    
+
     
     template <class datatype>
     Tensor<datatype> Tensor<datatype>::exp() {
@@ -649,7 +670,7 @@ namespace deepc {
         Tensor<datatype> child(shape_vector, requires_grad);
 
         for (size_t i = 0; i < value_vector.size(); i++) {
-            child.value_vector[i] = std::log(value_vector[i]);
+            child.value_vector[i] = std::log(value_vector[i] + 1e-8);
         }
 
         if (requires_grad) {
@@ -657,7 +678,7 @@ namespace deepc {
 
             child.grad_fn = [this, &child] {
                 for (size_t i = 0; i < child.grad.size(); i++) {
-                    this->grad[i] += child.grad[i] / this->value_vector[i];
+                    this->grad[i] += child.grad[i] / (this->value_vector[i] + 1e-8);
                 }
             };
         }

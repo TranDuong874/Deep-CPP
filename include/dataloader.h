@@ -1,6 +1,7 @@
 #ifndef DATALOADER_H
 #define DATALOADER_H
 
+#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -30,29 +31,33 @@ namespace deepc {
                 std::vector<float> pixels;
                 std::string token;
                 int col = 0;
-                float label = 0.0f;
+                int label = 0; 
 
                 while (std::getline(ss, token, ',')) {
-                    if (col == 0) {
-                        // First token is the label
-                        label = std::stof(token);
+                    if (col == 784) {
+                       
+                        label = std::stoi(token);  // Parse as integer
                     } else {
-                        // Normalize pixel values to [0, 1]
+                        
                         pixels.push_back(std::stof(token) / 255.0f);
                     }
                     col++;
                 }
 
-                // Ensure the input has 784 pixels (for a 28x28 MNIST image)
+                
                 if (pixels.size() != 784) {
                     throw std::runtime_error("Invalid number of pixels in a row: expected 784, got " + std::to_string(pixels.size()));
                 }
 
-                // Convert label to one-hot encoding
+                
                 std::vector<float> one_hot(10, 0.0f);
-                one_hot[static_cast<int>(label)] = 1.0f;
+                if (label >= 0 && label < 10) {
+                    one_hot[label] = 1.0f; 
+                } else {
+                    throw std::runtime_error("Invalid label value: " + std::to_string(label));
+                }
 
-                // Add the data pair (input, target) to the dataset
+                
                 dataset.emplace_back(pixels, one_hot);
                 count++;
             }

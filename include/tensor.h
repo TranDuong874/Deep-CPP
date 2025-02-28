@@ -31,14 +31,20 @@ namespace deepc {
             ~Tensor() {
                 resetTensor();
             }
+
+            std::vector<datatype>& getValueVector() {
+                return value_vector;
+            }
     
             void resetTensor() {
                 this->parent1 = nullptr;
                 this->parent2 = nullptr;
                 this->grad_fn = nullptr;
 
-                this->requires_grad = this->requires_grad;
                 setRequiresGrad(this->requires_grad);
+                
+                this->grad.clear();
+                this->grad.resize(value_vector.size(), 0.0f);
             }
 
             void checkParents() {
@@ -118,6 +124,7 @@ namespace deepc {
             Tensor<datatype> sigmoid();
             Tensor<datatype> tanh();
             Tensor<datatype> relu();
+            Tensor<datatype> leaky_relu(float alpha = 0.01);
             Tensor<datatype> exp();
             Tensor<datatype> sin();
             Tensor<datatype> cos();
