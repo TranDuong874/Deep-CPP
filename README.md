@@ -13,6 +13,34 @@ A simple artificial neural network (ANN) implemented in C++ from scratch. This p
 ### Prerequisites  
 - C++17 or later  
 
+# Performance
+## Benchmark Results
+The neural network was evaluated using the MNIST Handwritten Digits dataset, which is a standard benchmark in machine learning for digit recognition tasks.
+
+### Training Configuration
+Dataset: MNIST Handwritten number dataset
+- Dataset: MNIST (70,000 28×28 grayscale images of handwritten digits)
+- Number of batches: 1
+- Batch size 10,000
+- Training time: 1090.128 seconds
+- Hardware: CPU only (no GPU acceleration) AMD Ryzen 7 5800H
+
+### Network Architecture
+```
+Input (784) → Dense(64) → ReLU → Dense(32) → ReLU → Dense(10) → Softmax → Output
+```
+
+#### Confusion matrix
+![Confusion Matrix](./static/conf.png)
+*The confusion matrix shows the distribution of predictions across the 10 digit classes, highlighting where the model excels and where misclassifications occur.*
+
+#### Learning Curve
+![Learning Curve](./static/learning_rate.png)
+*This graph illustrates how the model's error rate decreased during training, demonstrating the effectiveness of our implementation.*
+
+### Conclusion
+From the performance statistics, we can observe that the current implementation is relatively slow, with a training time of 1090.128 seconds (over 18 minutes) for processing just a single batch of 10,000 MNIST images. This indicates significant room for optimization in our from-scratch C++ implementation.
+
 # Use Guide  
 
 ## 1. Tensors  
