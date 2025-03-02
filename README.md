@@ -24,6 +24,7 @@ Dataset: MNIST Handwritten number dataset
 - Batch size 10,000
 - Training time: 1090.128 seconds
 - Hardware: CPU only (no GPU acceleration) AMD Ryzen 7 5800H
+- MSE Loss 0.04
 
 ### Network Architecture
 ```
@@ -32,11 +33,10 @@ Input (784) → Dense(64) → ReLU → Dense(32) → ReLU → Dense(10) → Soft
 
 #### Confusion matrix
 ![Confusion Matrix](./static/conf.png)
-*The confusion matrix shows the distribution of predictions across the 10 digit classes, highlighting where the model excels and where misclassifications occur.*
 
 #### Learning Curve
 ![Learning Curve](./static/learning_curve.png)
-*This graph illustrates how the model's error rate decreased during training, demonstrating the effectiveness of our implementation.*
+
 
 ### Conclusion
 From the performance statistics, we can observe that the current implementation is relatively slow, with a training time of 1090.128 seconds (over 18 minutes) for processing just a single batch of 10,000 MNIST images. This indicates significant room for optimization in our from-scratch C++ implementation.
