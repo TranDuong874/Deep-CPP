@@ -35,7 +35,7 @@ Input (784) → Dense(64) → ReLU → Dense(32) → ReLU → Dense(10) → Soft
 *The confusion matrix shows the distribution of predictions across the 10 digit classes, highlighting where the model excels and where misclassifications occur.*
 
 #### Learning Curve
-![Learning Curve](./static/learning_rate.png)
+![Learning Curve](./static/learning_curve.png)
 *This graph illustrates how the model's error rate decreased during training, demonstrating the effectiveness of our implementation.*
 
 ### Conclusion
