@@ -17,47 +17,37 @@ A simple artificial neural network (ANN) implemented in C++ from scratch. This p
 ## Benchmark Results
 The neural network was evaluated using the MNIST Handwritten Digits dataset, which is a standard benchmark in machine learning for digit recognition tasks.
 
-### Training With 1,000 samples
-Dataset: MNIST Handwritten number dataset
-- Dataset: MNIST (70,000 28×28 grayscale images of handwritten digits)
-- Number of batches: 1
-- Batch size 1,000
-- Training time: 1090.128 seconds
-- Hardware: CPU only (no GPU acceleration) AMD Ryzen 7 5800H
-- MSE Loss 0.001
-- Accuracy 87,21%
-
 ### Network Architecture
 ```
 Input (784) → Dense(64) → ReLU → Dense(32) → ReLU → Dense(10) → Softmax → Output
 ```
+### Training configuration
+- Dataset: MNIST (70,000 28×28 grayscale images of handwritten digits)
+- Hardware: CPU only (no GPU acceleration) AMD Ryzen 7 5800H
+- Number of batches: 1
 
-#### Confusion matrix
-![Confusion Matrix](./static/200.png)
+#### Training with 1,000 samples
+- Batch size 1,000
+- Training time: 220.079 seconds
+- MSE Loss 0.001
+- Accuracy 87.21%
 
-#### Learning Curve
-![Learning Curve](./static/200_g.png)
+<div style="display: flex; justify-content: center; gap: 20px;">
+  <img src="./static/200.png" alt="Confusion Matrix" width="400">
+  <img src="./static/200_g.png" alt="Learning Curve" width="400">
+</div>
 
 ### Training With 10,000 samples
 Dataset: MNIST Handwritten number dataset
-- Dataset: MNIST (70,000 28×28 grayscale images of handwritten digits)
-- Number of batches: 1
 - Batch size 10,000
 - Training time: 1090.128 seconds
-- Hardware: CPU only (no GPU acceleration) AMD Ryzen 7 5800H
 - MSE Loss 0.04
-- Accuracy 71,53%
+- Accuracy 71.53%
 
-### Network Architecture
-```
-Input (784) → Dense(64) → ReLU → Dense(32) → ReLU → Dense(10) → Softmax → Output
-```
-
-#### Confusion matrix
-![Confusion Matrix](./static/conf.png)
-
-#### Learning Curve
-![Learning Curve](./static/learning_curve.png)
+<div style="display: flex; justify-content: center; gap: 20px;">
+  <img src="./static/conf.png" alt="Confusion Matrix" width="400">
+  <img src="./static/learning_curve.png" alt="Learning Curve" width="400">
+</div>
 
 
 ### Conclusion
